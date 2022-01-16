@@ -1,0 +1,601 @@
+---
+title: "Ex 12-2"
+author: "Andrin Rehmann"
+date: "12/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Distributions
+
+```{r}
+# Given Model B_0 + B_1 * x_1 + B_2 * x_2
+n = 15
+B_0 = 10
+B_1 = 12
+B_2 = 15
+
+var = 2
+
+# (X_T * X)^-1
+A = matrix(c(1, 0.25, 0.25, 0.25, 0.5, -0.25, 0.25, -0.25, 2), nrow=3)
+
+
+
+# Standrd Error of B_2
+(SE_B2 = sqrt(var * A[3,3]))
+
+t_0 = B_2 / SE_B2
+
+# Reject H0: B_2 = 0
+t0.975 = qt(0.975, df = n - 3)
+abs(t_0) > t0.975
+
+# Covariance between B_1 and B_2
+cov = A[2,3]
+
+# Standard error of B_1 - B_2
+
+```
+
+
+## Normal Distribution
+```{r}
+x = seq(-2, 2, 0.01)
+y1 = dnorm(x)
+plot(x, y1, ylim = c(0, 1), type = "l")
+
+y2 = pnorm(x)
+lines(x, y2, col="red")
+
+x2 = seq(0, 1, 0.01)
+y3 = qnorm(x2)
+plot(x2, y3)
+
+y4 = rnorm(10000)
+hist(y4, breaks= 50)
+```
+
+# Classification, Cross Validation
+## EDA
+
+```{r}
+head(iris)
+
+
+boxplot(Sepal.Length ~ Species, data = iris)
+boxplot(Sepal.Width ~ Species, data = iris)
+boxplot(Petal.Length ~ Species, data = iris)
+
+
+pairs(iris[,1:4])
+
+```
+## Classification
+```{r}
+require(MASS)
+ind = sample(1:nrow(iris), nrow(iris) * 0.7)
+train = iris[ind,]
+test = iris[-ind,]
+
+lda1 <- lda(Species ~ ., data = train)
+
+# Do not use data = here!!
+prediction = predict(lda1, test)
+
+conf <- table(list(predicted=prediction$class, observed=test$Species))
+
+conf
+
+
+qda1 <- qda(Species ~ ., data = train)
+
+prediction = predict(qda1, test)
+
+conf <- table(list(predicted=prediction$class, observed=test$Species))
+
+conf
+
+```
+
+## Cross validation
+
+```{r}
+require(randomForest)
+require(partykit)
+
+
+k = 40
+# shuffle our data
+irirs <- iris[sample(1:nrow(iris)),]
+# create k equally size folds
+folds <- cut(seq(1,nrow(iris)), breaks=k, labels=FALSE)
+
+j = 1
+total_error_l = 0
+total_error_q = 0
+total_error_rf = 0
+total_error_rt = 0
+
+for(i in 1:k){
+  # segement your data by fold using the which() function
+  testIndexes <- which(folds==i, arr.ind=TRUE)
+  test <- iris[testIndexes, ]
+  l = length(test)
+  train <- iris[-testIndexes, ]
+  
+  # LDA
+  lda <- lda(Species ~ ., data = train)
+
+  prediction = predict(lda, test)
+
+  err = prediction$class != test$Species
+  
+  total_error_l = total_error_l + sum(err)
+  
+  # QDA
+  qda <- qda(Species ~ ., data = train)
+
+  prediction = predict(qda, test)
+
+  err = prediction$class != test$Species
+  
+  total_error_q = total_error_q + sum(err)
+  
+  # RT
+  rt = ctree(Species ~ ., data = train)
+  
+  # Note that the output is different here
+  prediction = predict(rt, test)
+  
+  err = prediction != test$Species
+  
+  total_error_rt = total_error_rt + sum(err)
+
+  
+  # RF
+  rf = randomForest(Species ~ ., data = train, ntree = 50)
+  
+  # Note that the output is different here
+  prediction = predict(rf, test)
+  
+  err = prediction != test$Species
+  
+  total_error_rf = total_error_rf + sum(err)
+
+}
+
+# K Fold error
+total_error_l / nrow(iris)
+total_error_q / nrow(iris)
+total_error_rt / nrow(iris)
+total_error_rf / nrow(iris)
+
+```
+## Plotting Classification
+
+```{r}
+plot(rt)
+
+par(mfrow = c(1, 2))
+# Plot the mean square aerror over the course of the trees
+plot(rf)
+# Defines the accuracy the model looses by excluding each variable
+varImpPlot(rf, main = " ")
+```
+# Clustering
+
+## EDA
+```{r}
+protein = read.table("protein.txt", header=TRUE)
+
+protein
+
+pairs(protein[,2:10])
+
+```
+
+## PCA
+
+```{r}
+pca = prcomp(protein[,2:10], scale = T, center = T)
+
+# Manually plot results
+plot(pca$x[,1], pca$x[,2])
+text(pca$x[,1], pca$x[,2], labels=protein$Country)
+
+# Explained variance => Eigenvalues
+screeplot(pca)
+
+# Visual contribution analysis
+biplot(pca)
+
+# More info
+pca 
+# Variance
+pca$sdev^2
+# Cumulative variance explained, same as screeplot
+cumsum(pca$sdev^2)/ncol(protein[2:10])
+```
+We can see that that the eigenvalues strongly decrease with each PC, this is good and means that the PCA worked well.
+
+## Components to keep from PCA
+
+```{r}
+var = pca$sdev^2
+L <- var
+error.factor <- sqrt(2/dim(pca$rotation)[2])
+cut.ok <- (L[-length(L)] - L[-1])/L[-length(L)] < error.factor
+plot(var, type = "b", log = "y", ylab = "eigenvalues")
+abline(v = which(cut.ok) + 0.5, lty = 2, col = 2)
+
+
+```
+The red lines represent the locaion where we could cutoff the number of components in the PCA. It tries to find ellbows numerically, which in this case is not that straight forward. In other cases this would be a lot easier.
+
+## Clustering
+
+```{r}
+
+single <- hclust(dist(scale(protein[,2:10])), method="single")
+plot(single, labels = protein[,1], main="single")
+
+complete <- hclust(dist(scale(protein[,2:10])), method="complete")
+plot(complete, labels = protein[,1], main="complete")
+
+ward <- hclust(dist(scale(protein[,2:10])), method="ward.D2")
+plot(ward, labels = protein[,1], main="ward")
+
+km = kmeans(protein[,2:10], center = 4, nstart = 20)
+
+```
+
+## Group sizes, plotting & Dendograms
+
+```{r}
+
+# Manually plot results
+plot(pca$x[,1], pca$x[,2], col=km$cluster)
+#text(pca$x[,1], pca$x[,2], labels=protein$Country)
+
+plot(single, labels = protein[,1])
+rect.hclust(single, k=4, border=2:4)
+
+plot(complete, labels = protein[,1])
+rect.hclust(complete, k=4, border=2:4)
+
+plot(ward, labels = protein[,1])
+rect.hclust(ward, k=4, border=2:4)
+```
+
+
+# Linear and multilinear Regression
+
+```{r}
+lm1 = lm(Sepal.Length ~ . - Species, data = irirs)
+lm2 = lm(Sepal.Length ~ Petal.Width, data = irirs)
+
+summary(lm1)
+
+
+anova(lm2, lm1)
+
+plot(lm1)
+
+```
+
+Including more data is most defenetly an improvement of the model.
+
+# Mixel Linear Model
+
+## Wide to Long
+```{r}
+
+require(lattice)
+
+termites = read.table("termites.txt", header=TRUE)
+
+# varying: variables which for each we want to create a row for
+# v.names: name for column in ouput dataset
+# timevar: where we store the time,
+# idvar: id of the row (could not be dose, as dose values are not unique)
+termites = reshape(termites, direction ="long", varying = paste("day", sep="", c(1:15)), v.names = "surv", idvar = "dish", timevar = "day" )
+
+termites$dose <- factor(termites$dose)
+termites$dish <- factor(termites$dish)
+termites
+
+# Make a cool plot
+plot1 = xyplot(surv ~ day | dose, group = dish, data = termites, type = "l")
+print(plot1)
+print(bwplot(~surv | dose, data = termites))
+
+```
+
+## Fiting the model
+
+
+```{r}
+require(lme4)
+lm1 = lmer(surv ~ day + dose + (day | dish), data = termites)
+
+plot(lm1)
+
+```
+
+## Parametric Bootstrap
+
+Figure out confidence interval for a parameter of a mixed linear model.
+
+```{r}
+n = length(termites)
+
+iter = 200
+vec = numeric(iter)
+
+for (i in 1:iter) {
+  testIndexes <- sample(n, n, replace=TRUE)
+  test <- termites[testIndexes, ]
+  l = length(test)
+  train <- termites[-testIndexes, ]
+  
+  m = lmer(surv ~ dose + day + (1 | dish), data = train)
+  vec[i] = fixef(m)[2]
+}
+
+quantile(vec, c(0.025, 0.975))
+
+
+```
+
+# Non parametric Regression
+
+
+```{r}
+# Simulated data
+x = seq(0, 10, 0.04)
+n = length(x)
+y = x*x*0.3 - x*2 + 5*sin(x*x*0.5) + rnorm(n, 0, 1)
+
+df = data.frame(x = x, y = y)
+plot(x,y, type='l')
+
+lm1 = lm(x ~ y, data = df)
+
+summary(lm1)
+par(mfrow = c(2, 2))
+plot(lm1)
+```
+We can obersve as we try to fit a linear model all sorts of assumptions are violated.
+
+- **Homoscedastic:** In the scale location plot the line is not horizontal and seems to have this distinctive ellbow shape. 
+- **Independence:** The model is independent, which we can only say because we know the underlying function.
+- **Gaussian:** The errors are not normally distributed as we can see in QQ plot. The residuals are not linearly distributed.
+- **Linearity:** We can observe in the residuals vs fitted plot how the residuals in the center are drawn towards more negative numbers.
+
+## Kernel Smoothing
+
+```{r}
+knorm1 = ksmooth(x, y, kernel = "normal", bandwidth = 5)
+knorm2 = ksmooth(x, y, kernel = "normal", bandwidth = 1)
+kbox = ksmooth(x, y, kernel = "box", bandwidth = 15)
+
+plot(x, y)
+lines(knorm1, col="red")
+lines(knorm2, col="blue")
+lines(kbox, col="green")
+
+```
+## Smoothing Splines
+
+```{r}
+splines1 = smooth.spline(x, y, spar = 0.5)
+splines2 = smooth.spline(x, y, spar = 0.1)
+plot(x, y)
+lines(splines1, col="red")
+lines(splines2, col="blue")
+
+```
+## Local polynomials
+
+```{r}
+library(sm)
+
+lp1 = loess(y ~ x, span = 0.5)
+lp2 = loess(y ~ x, span = 0.5)
+
+plot(x, y)
+
+lines(x, lp1$fitted, col = "red")
+lines(x, lp2$fitted, col = "blue")
+
+
+```
+
+# Logistic Regression
+
+```{r}
+library(faraway)
+data(bliss)
+bliss
+
+plot(bliss$conc, bliss$dead / (bliss$dead + bliss$alive))
+
+ml <- glm(cbind(dead, alive) ~ conc, family = binomial(link = "logit"), data = bliss)
+summary(ml)
+
+par(mfrow = c(2, 2))
+plot(ml)
+```
+## Manually predict values
+
+```{r}
+ilogit(coef(ml)[1] + coef(ml)[2] * bliss$conc)
+
+
+fitted(ml)
+
+```
+## Extended plotting
+
+```{r}
+x = seq(-3, 8, 0.1)
+pred <- predict(ml, newdata = data.frame(conc = x), type = "response", se.fit = TRUE)
+
+plot(x, pred$fit, type='l', col = "blue")
+
+# Add 95% confidence interval
+lines(x, pred$fit + pred$se.fit * qnorm(0.975), type='l', col = "blue", lty = 2)
+lines(x, pred$fit + pred$se.fit * -qnorm(0.975), type='l', col = "blue", lty = 2)
+
+points(bliss$conc, bliss$dead / (bliss$dead + bliss$alive))
+
+abline(h = 1, col = "red", lty = 2)
+abline(h = 0, col = "red", lty = 2)
+
+```
+
+## logistic, logti and logistic function
+
+```{r}
+x = seq(0, 1, 0.02)
+
+plot(logit(x), x)
+
+
+```
+
+## LD 50
+
+```{r}
+ld50 <- unname(-ml$coef[1]/ml$coef[2])
+ld50
+
+```
+# Survival Analysis
+
+```{r}
+pbc = read.table("pbc.txt", header=TRUE)
+
+pbc$treat = as.factor(pbc$treat)
+
+head(pbc)
+
+require(survival)
+
+# Survival Object
+surv = Surv(time = pbc$time, event=pbc$d)
+summary(surv)
+plot(surv)
+```
+## Comparing treatmens
+
+
+```{r}
+# This basically fits a kaplan meier curve
+surv_1 = survfit(surv ~ pbc$treat)
+
+plot(surv_1, col=c("blue", "red"))
+```
+## Log Rank Test
+
+```{r}
+survdiff(surv ~ pbc$treat)
+```
+The H:0 that the outcome of the both treatments were the same, cannot be rejected. 
+
+## Cox Model:
+
+```{r}
+cox <- coxph(surv ~ pbc$treat)
+
+summary(cox)
+```
+We can conclude that the variable treat2 is not significant different from 0. (First row)
+Having had the treatment 2 results in a decrease in the death probability by exp(-0.155) percent.
+We can also see the confidence intervals for the Hazard Ratios.
+The concordance is the percentage of pairs where the predicted values are correctly ordered among all subjects which can be ordered.
+
+## Multivariate Cox Model
+
+```{r}
+cox2 <- coxph(surv ~ pbc$treat + pbc$age + pbc$cenc0)
+
+summary(cox2)
+
+```
+We can see that both age and cenc0 are significant predictors for the outcome of the illness.
+
+## Proportional Hazard Assumptions Test
+
+```{r}
+cox.zph(cox)
+
+cox.zph(cox2)
+
+```
+Proportionality assumptions states that the hazard rate of an individual is relatively constant in time. For none of the covariates the test is statistically significant, meaning we can assume proportional hazards.
+
+## Proportional Hazard Assumptions Plot
+
+```{r}
+plot(cox.zph(cox))
+par(mfrow = c(1, 3))
+plot(cox.zph(cox2))
+
+```
+For the plot considering only treat we could plot a straight line which does not hit the confidence interval lines. Again we have no reason to reject the proportional hazards.
+
+Also in the plots for the model considering treat age and conc0 do not hint towards rejecting the proportinal hazards. While maybe hard to spot but also for the third plot of cenc0 it would be possible to draw a line.
+
+# Time Series
+
+## Auto regressive model
+
+```{r}
+sigma = sqrt(2)
+phi = 0.5
+n = 50
+
+# Sequential version
+y = numeric(n)
+y[1] = 0
+for (i in 2:n) {
+  
+  y[i] = y[i-1] * phi + rnorm(1, mean = 0, sd = sigma)
+  
+}
+
+par(mfrow = c(2, 1))
+plot(y, type="l", main = "sequential")
+
+# Direct approach
+
+
+require(mvtnorm)
+
+SIGMA <- outer(1:n, 1:n, function(x, y){ sigma / ((1-phi^2))*phi^(abs(x-y)) })
+
+y2 <- c(rmvnorm(1, rep(0, n), SIGMA))
+
+plot(y2, type="l", main = "direct")
+```
+
+
+## With real world data
+
+
+```{r}
+require(tibble)
+
+UKgas[5]
+
+gas = reshape(UKgas, direction ="long", varying = paste("Qtr", sep="", c(1:4)), v.names = "gas",  timevar = "date", idvar = "")
+
+
+gas
+
+```
