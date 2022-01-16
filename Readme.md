@@ -518,7 +518,7 @@ Exponenital or Weibull distribution is used. Censoring is when the outcome for a
 
 ### Weibull distribution
 
-![Weibull](../img/weibull.png)
+![Weibull](/img/weibull.png)
 
 
 
@@ -618,7 +618,7 @@ The covariance function c(v) is a function on a vector in the domain D. For exam
 
   
 
-![iso_aniso](../img/isotropic_anisotropic.png)
+![iso_aniso](img/isotropic_anisotropic.png)
 
 ### Intrinsic Stationary
 
