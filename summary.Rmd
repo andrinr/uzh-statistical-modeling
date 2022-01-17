@@ -589,13 +589,28 @@ plot(y2, type="l", main = "direct")
 
 
 ```{r}
-require(tibble)
+meat <- read.table("Meatprice.txt", header = TRUE)
 
-UKgas[5]
+head(meat)
 
-gas = reshape(UKgas, direction ="long", varying = paste("Qtr", sep="", c(1:4)), v.names = "gas",  timevar = "date", idvar = "")
+mts = ts(meat$Price, frequency = 12, start = c(2007, 1))
 
+mts
 
-gas
+plot(mts)
+
+dc = stl(mts, s.window = "periodic")
+
+plot(dc)
+```
+## Correlation of Residuals
+
+```{r}
+par(mfrow = c(1, 2))
+# Compute autocovariance / autocorrelation
+tt <- acf(dc$time.series[, 3])
+# Pure autorcorrleation without transitive correlation
+pacf(dc$time.series[, 3])
+
 
 ```
